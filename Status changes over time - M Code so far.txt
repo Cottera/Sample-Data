@@ -1,0 +1,13 @@
+let
+    Source = Sql.Database("xxxx", "xxxx"),
+    Repairs_repairsmainviewHISTORY = Source{[Schema="Repairs",Item="repairsmainviewHISTORY"]}[Data],
+    #"Changed Type" = Table.TransformColumnTypes(Repairs_repairsmainviewHISTORY,{{"DateADDED", type date}}),
+    #"Removed Other Columns" = Table.SelectColumns(#"Changed Type",{"AgeOfJobInWorkingDays", "Appointment Completion Action Description", "Appointment Date", "Date Logged", "DateADDED", "Due_Overdue", "Job Description", "Job Status Description", "MaxJobNoteAddedWhen", "MaxJobNoteDetails", "MaxJobNotesAddedByWho", "Repairs Request Ref", "Supplier Name", "Supplier Type Description", "Trade", "Unit Reference", "Work Stream"}),
+    #"Filtered Rows2" = Table.SelectRows(#"Removed Other Columns", each [Date Logged] > #date(2023, 1, 1)),
+    #"Filtered Rows" = Table.SelectRows(#"Filtered Rows2", each ([Supplier Type Description] = "DLO") and ([Work Stream] = "GAS_BRKDWN" or [Work Stream] = "REACTIVE_A" or [Work Stream] = "REACTIVE_B" or [Work Stream] = "ROUTINE_EXTERNAL" or [Work Stream] = "ROUTINE_INTERNAL")),
+    #"Merged Queries" = Table.NestedJoin(#"Filtered Rows", {"Repairs Request Ref"}, JobStatusAsAtToday, {"Repairs Request Ref"}, "JobStatusAsAtToday", JoinKind.LeftOuter),
+    #"Expanded JobStatusAsAtToday" = Table.ExpandTableColumn(#"Merged Queries", "JobStatusAsAtToday", {"Date Completed", "Job Completed within SLA", "Current Job Status", "WorkingDaysToComplete"}, {"Date Completed", "Job Completed within SLA", "Current Job Status", "WorkingDaysToComplete"}),
+    #"Added Custom" = Table.AddColumn(#"Expanded JobStatusAsAtToday", "Custom", each if [Date Completed] = null then true else if [DateADDED] <= [Date Completed] then true else false),
+    #"Renamed Columns" = Table.RenameColumns(#"Added Custom",{{"Repairs Request Ref", "Job Number"}})
+in
+    #"Renamed Columns"
